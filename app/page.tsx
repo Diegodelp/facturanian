@@ -6,8 +6,6 @@ import { DOC_TYPES, DocTypeOption, sanitizeDocumentNumber } from '@/lib/docTypes
 type AuthFormState = {
   cuit: string;
   env: 'HOMO' | 'PROD';
-  certPem: string;
-  keyPem: string;
   ptoVta: string;
   tipoCbte: 'A' | 'B' | 'C';
   concepto: '1' | '2' | '3';
@@ -17,8 +15,6 @@ type ActiveSession = {
   auth: {
     cuit: number;
     env: 'HOMO' | 'PROD';
-    certPem: string;
-    keyPem: string;
   };
   ptoVta: number;
   tipoCbte: 'A' | 'B' | 'C';
@@ -46,8 +42,6 @@ const IVA_OPTIONS = [
 const INITIAL_AUTH_FORM: AuthFormState = {
   cuit: '',
   env: 'HOMO',
-  certPem: '',
-  keyPem: '',
   ptoVta: '1',
   tipoCbte: 'C',
   concepto: '1'
@@ -148,7 +142,7 @@ export default function Page() {
     [recipients, selectedRecipientId]
   );
 
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatusMessage(null);
     setErrorMessage(null);
@@ -163,16 +157,27 @@ export default function Page() {
       if (!Number.isFinite(parsedPtoVta) || parsedPtoVta <= 0) {
         throw new Error('El punto de venta debe ser un número positivo.');
       }
-      if (!authForm.certPem.trim() || !authForm.keyPem.trim()) {
-        throw new Error('Pegá tu certificado digital (.pem) y clave privada.');
+
+      setStatusMessage('Validando credenciales con AFIP...');
+
+      const response = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cuit: parsedCuit,
+          env: authForm.env
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message ?? 'No se pudo validar la sesión con AFIP.');
       }
 
       setSession({
         auth: {
           cuit: parsedCuit,
-          env: authForm.env,
-          certPem: authForm.certPem.trim(),
-          keyPem: authForm.keyPem.trim()
+          env: authForm.env
         },
         ptoVta: parsedPtoVta,
         tipoCbte: authForm.tipoCbte,
@@ -402,9 +407,9 @@ export default function Page() {
     >
       <h1 style={{ fontSize: 28, marginBottom: 16 }}>Facturanian – Gestión de Facturas AFIP</h1>
       <p style={{ marginBottom: 24 }}>
-        Iniciá sesión con tu clave fiscal (certificado y clave privada) para emitir comprobantes.
-        Podés cargar destinatarios desde un Excel o ingresarlos manualmente para generar facturas
-        con QR automáticamente.
+        Iniciá sesión con tu CUIT. Las credenciales digitales necesarias para AFIP se administran
+        automáticamente en el servidor. Podés cargar destinatarios desde un Excel o ingresarlos
+        manualmente para generar facturas con QR automáticamente.
       </p>
 
       <section
@@ -416,7 +421,7 @@ export default function Page() {
           background: '#fafafa'
         }}
       >
-        <h2 style={{ fontSize: 20, marginBottom: 12 }}>1. Ingresá tu clave fiscal</h2>
+        <h2 style={{ fontSize: 20, marginBottom: 12 }}>1. Iniciá sesión</h2>
         <form onSubmit={handleLogin} style={{ display: 'grid', gap: 12 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <label style={{ flex: '1 1 160px' }}>
@@ -492,31 +497,6 @@ export default function Page() {
               </select>
             </label>
           </div>
-
-          <label>
-            Certificado (.pem)
-            <textarea
-              required
-              value={authForm.certPem}
-              onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                setAuthForm({ ...authForm, certPem: event.target.value })
-              }
-              rows={6}
-              style={{ width: '100%', padding: 8, marginTop: 4, fontFamily: 'monospace' }}
-            />
-          </label>
-          <label>
-            Clave privada (.pem)
-            <textarea
-              required
-              value={authForm.keyPem}
-              onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                setAuthForm({ ...authForm, keyPem: event.target.value })
-              }
-              rows={6}
-              style={{ width: '100%', padding: 8, marginTop: 4, fontFamily: 'monospace' }}
-            />
-          </label>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <button

@@ -5,12 +5,12 @@ import { makeAfipClient } from '@/lib/afipClient';
 import { buildAfipQrDataUrl } from '@/lib/qr';
 import { buildInvoicePdf } from '@/lib/pdf';
 import { DOC_TYPES } from '@/lib/docTypes';
+import { resolveAfipCredentials } from '@/lib/credentials';
+import { hasValidBasicAuth } from '@/lib/basicAuth';
 
 const AuthSchema = z.object({
   cuit: z.number().int(),
-  env: z.enum(['HOMO','PROD']),
-  certPem: z.string().min(20),
-  keyPem: z.string().min(20)
+  env: z.enum(['HOMO', 'PROD'])
 });
 
 const BodySchema = z.object({
@@ -33,19 +33,8 @@ const BodySchema = z.object({
 
 const tipoToCode: Record<string, number> = { A: 1, B: 6, C: 11 };
 
-function requireBasicAuth(req: NextRequest) {
-  const user = process.env.BASIC_AUTH_USER;
-  const pass = process.env.BASIC_AUTH_PASS;
-  if (!user || !pass) return true;
-  const header = req.headers.get('authorization');
-  if (!header || !header.startsWith('Basic ')) return false;
-  const raw = Buffer.from(header.split(' ')[1], 'base64').toString('utf8');
-  const [u, p] = raw.split(':');
-  return u === user && p === pass;
-}
-
 export async function POST(req: NextRequest) {
-  if (!requireBasicAuth(req)) {
+  if (!hasValidBasicAuth(req)) {
     return new NextResponse('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="AFIP"' } });
   }
 
@@ -54,11 +43,13 @@ export async function POST(req: NextRequest) {
     const data = BodySchema.parse(body);
 
     const cbteTipo = tipoToCode[data.tipoCbte];
+    const credentials = resolveAfipCredentials(data.auth.cuit, data.auth.env);
+
     const afip = makeAfipClient({
       CUIT: data.auth.cuit,
       production: data.auth.env === 'PROD',
-      certPem: data.auth.certPem,
-      keyPem: data.auth.keyPem
+      certPem: credentials.certPem,
+      keyPem: credentials.keyPem
     });
 
     const last = await (afip as any).ElectronicBilling.getLastVoucher(data.ptoVta, cbteTipo);
