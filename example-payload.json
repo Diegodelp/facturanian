@@ -1,0 +1,16 @@
+{
+  "auth": {
+    "cuit": 20123456789,
+    "env": "HOMO",
+    "certPem": "-----BEGIN CERTIFICATE-----\nPEGA AQUI TU CERTIFICADO\n-----END CERTIFICATE-----",
+    "keyPem": "-----BEGIN PRIVATE KEY-----\nPEGA AQUI TU PRIVATE KEY\n-----END PRIVATE KEY-----"
+  },
+  "ptoVta": 1,
+  "tipoCbte": "C",
+  "concepto": 1,
+  "docTipo": 99,
+  "docNro": 0,
+  "items": [
+    { "desc": "Consulta odontológica", "qty": 1, "price": 15000 }
+  ]
+}
