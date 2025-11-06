@@ -151,6 +151,18 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error(err);
+    const status = err?.response?.status ?? err?.status;
+    if (status === 401) {
+      return NextResponse.json(
+        {
+          error: true,
+          message:
+            'AFIP rechazó las credenciales configuradas. Verificá que el certificado y la clave privada correspondan al CUIT y que el servicio WSFE esté habilitado.'
+        },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json({ error: true, message: err?.message ?? 'Unknown error' }, { status: 400 });
   }
 }
