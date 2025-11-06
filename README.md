@@ -43,3 +43,8 @@ Si necesitás múltiples CUIT, podés usar `AFIP_CREDENTIALS` con el siguiente f
 
 La API tomará automáticamente las credenciales correspondientes según el CUIT y entorno enviados
 en el body del request o desde la interfaz.
+
+> ¿Querés que la app sólo valide la Clave Fiscal sin subir certificados a Vercel?
+> Revisá [docs/clave-fiscal-login.md](docs/clave-fiscal-login.md) para ver cómo
+> integrar un vault externo de credenciales y mantener los PEM fuera del
+> runtime de Vercel.
