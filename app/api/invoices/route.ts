@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { makeAfipClient } from '@/lib/afipClient';
 import { buildAfipQrDataUrl } from '@/lib/qr';
 import { buildInvoicePdf } from '@/lib/pdf';
+import { DOC_TYPES } from '@/lib/docTypes';
 
 const AuthSchema = z.object({
   cuit: z.number().int(),
@@ -19,7 +20,15 @@ const BodySchema = z.object({
   concepto: z.number().int().min(1).max(3).default(1),
   docTipo: z.number().int().default(99),
   docNro:  z.number().int().default(0),
-  items:   z.array(z.object({ desc: z.string(), qty: z.number().positive(), price: z.number().nonnegative() }))
+  items:   z.array(z.object({ desc: z.string(), qty: z.number().positive(), price: z.number().nonnegative() })),
+  customer: z
+    .object({
+      name: z.string().min(1),
+      ivaCondition: z.string().min(1),
+      documentLabel: z.string().optional(),
+      documentNumber: z.string().optional()
+    })
+    .optional()
 });
 
 const tipoToCode: Record<string, number> = { A: 1, B: 6, C: 11 };
@@ -106,6 +115,8 @@ export async function POST(req: NextRequest) {
     });
 
     const pdfPath = `/tmp/factura-${cbteTipo}-${data.ptoVta}-${cbteNro}.pdf`;
+    const docLabel = DOC_TYPES.find(({ code }) => code === data.docTipo)?.label;
+
     await buildInvoicePdf({
       outputPath: pdfPath,
       header: {
@@ -120,7 +131,21 @@ export async function POST(req: NextRequest) {
       totals: { neto, iva: iva21, total },
       cae: CAE,
       caeVto: dayjs(CAEFchVto, 'YYYYMMDD').format('DD/MM/YYYY'),
-      qrDataUrl
+      qrDataUrl,
+      customer: data.customer
+        ? {
+            ...data.customer,
+            documentLabel: data.customer.documentLabel ?? docLabel,
+            documentNumber: data.customer.documentNumber ?? String(data.docNro)
+          }
+        : docLabel
+          ? {
+              name: 'Receptor',
+              ivaCondition: 'Sin especificar',
+              documentLabel: docLabel,
+              documentNumber: String(data.docNro)
+            }
+          : undefined
     });
 
     const fs = await import('node:fs');

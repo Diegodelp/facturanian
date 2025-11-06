@@ -8,7 +8,8 @@ export async function buildInvoicePdf({
   totals,
   cae,
   caeVto,
-  qrDataUrl
+  qrDataUrl,
+  customer
 }: {
   outputPath: string;
   header: { razon: string; cuit: string; ptoVta: number; tipo: string; nro: number; fecha: string; };
@@ -16,6 +17,12 @@ export async function buildInvoicePdf({
   totals: { neto: number; iva: number; total: number; };
   cae: string; caeVto: string;
   qrDataUrl: string;
+  customer?: {
+    name: string;
+    ivaCondition: string;
+    documentLabel?: string;
+    documentNumber?: string;
+  };
 }) {
   const doc = new PDFDocument({ size: 'A4', margin: 36 });
   doc.pipe(fs.createWriteStream(outputPath));
@@ -25,6 +32,17 @@ export async function buildInvoicePdf({
   doc.text(`P.V.: ${header.ptoVta}  |  Tipo: ${header.tipo}  |  Nro: ${String(header.nro).padStart(8, '0')}`);
   doc.text(`Fecha: ${header.fecha}`);
   doc.moveDown();
+
+  if (customer) {
+    doc.fontSize(11).text('Datos del receptor', { underline: true });
+    doc.fontSize(10);
+    doc.text(customer.name);
+    doc.text(`Condición frente al IVA: ${customer.ivaCondition}`);
+    if (customer.documentLabel && customer.documentNumber) {
+      doc.text(`${customer.documentLabel}: ${customer.documentNumber}`);
+    }
+    doc.moveDown();
+  }
 
   doc.fontSize(11).text('Detalle', { underline: true });
   items.forEach(it => {
