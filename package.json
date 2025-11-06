@@ -21,6 +21,8 @@
   "devDependencies": {
     "@types/node": "^22.7.4",
     "@types/pdfkit": "^0.12.12",
+    "@types/react": "file:types/@types/react",
+    "@types/react-dom": "file:types/@types/react-dom",
     "typescript": "^5.6.3"
   }
 }

@@ -1,9 +1,7 @@
 {
   "auth": {
     "cuit": 20123456789,
-    "env": "HOMO",
-    "certPem": "-----BEGIN CERTIFICATE-----\nPEGA AQUI TU CERTIFICADO\n-----END CERTIFICATE-----",
-    "keyPem": "-----BEGIN PRIVATE KEY-----\nPEGA AQUI TU PRIVATE KEY\n-----END PRIVATE KEY-----"
+    "env": "HOMO"
   },
   "ptoVta": 1,
   "tipoCbte": "C",

@@ -4,12 +4,13 @@ import { z } from 'zod';
 import { makeAfipClient } from '@/lib/afipClient';
 import { buildAfipQrDataUrl } from '@/lib/qr';
 import { buildInvoicePdf } from '@/lib/pdf';
+import { DOC_TYPES } from '@/lib/docTypes';
+import { resolveAfipCredentials } from '@/lib/credentials';
+import { hasValidBasicAuth } from '@/lib/basicAuth';
 
 const AuthSchema = z.object({
   cuit: z.number().int(),
-  env: z.enum(['HOMO','PROD']),
-  certPem: z.string().min(20),
-  keyPem: z.string().min(20)
+  env: z.enum(['HOMO', 'PROD'])
 });
 
 const BodySchema = z.object({
@@ -19,24 +20,21 @@ const BodySchema = z.object({
   concepto: z.number().int().min(1).max(3).default(1),
   docTipo: z.number().int().default(99),
   docNro:  z.number().int().default(0),
-  items:   z.array(z.object({ desc: z.string(), qty: z.number().positive(), price: z.number().nonnegative() }))
+  items:   z.array(z.object({ desc: z.string(), qty: z.number().positive(), price: z.number().nonnegative() })),
+  customer: z
+    .object({
+      name: z.string().min(1),
+      ivaCondition: z.string().min(1),
+      documentLabel: z.string().optional(),
+      documentNumber: z.string().optional()
+    })
+    .optional()
 });
 
 const tipoToCode: Record<string, number> = { A: 1, B: 6, C: 11 };
 
-function requireBasicAuth(req: NextRequest) {
-  const user = process.env.BASIC_AUTH_USER;
-  const pass = process.env.BASIC_AUTH_PASS;
-  if (!user || !pass) return true;
-  const header = req.headers.get('authorization');
-  if (!header || !header.startsWith('Basic ')) return false;
-  const raw = Buffer.from(header.split(' ')[1], 'base64').toString('utf8');
-  const [u, p] = raw.split(':');
-  return u === user && p === pass;
-}
-
 export async function POST(req: NextRequest) {
-  if (!requireBasicAuth(req)) {
+  if (!hasValidBasicAuth(req)) {
     return new NextResponse('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="AFIP"' } });
   }
 
@@ -45,11 +43,13 @@ export async function POST(req: NextRequest) {
     const data = BodySchema.parse(body);
 
     const cbteTipo = tipoToCode[data.tipoCbte];
+    const credentials = resolveAfipCredentials(data.auth.cuit, data.auth.env);
+
     const afip = makeAfipClient({
       CUIT: data.auth.cuit,
       production: data.auth.env === 'PROD',
-      certPem: data.auth.certPem,
-      keyPem: data.auth.keyPem
+      certPem: credentials.certPem,
+      keyPem: credentials.keyPem
     });
 
     const last = await (afip as any).ElectronicBilling.getLastVoucher(data.ptoVta, cbteTipo);
@@ -106,6 +106,8 @@ export async function POST(req: NextRequest) {
     });
 
     const pdfPath = `/tmp/factura-${cbteTipo}-${data.ptoVta}-${cbteNro}.pdf`;
+    const docLabel = DOC_TYPES.find(({ code }) => code === data.docTipo)?.label;
+
     await buildInvoicePdf({
       outputPath: pdfPath,
       header: {
@@ -120,7 +122,21 @@ export async function POST(req: NextRequest) {
       totals: { neto, iva: iva21, total },
       cae: CAE,
       caeVto: dayjs(CAEFchVto, 'YYYYMMDD').format('DD/MM/YYYY'),
-      qrDataUrl
+      qrDataUrl,
+      customer: data.customer
+        ? {
+            ...data.customer,
+            documentLabel: data.customer.documentLabel ?? docLabel,
+            documentNumber: data.customer.documentNumber ?? String(data.docNro)
+          }
+        : docLabel
+          ? {
+              name: 'Receptor',
+              ivaCondition: 'Sin especificar',
+              documentLabel: docLabel,
+              documentNumber: String(data.docNro)
+            }
+          : undefined
     });
 
     const fs = await import('node:fs');
@@ -135,6 +151,18 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error(err);
+    const status = err?.response?.status ?? err?.status;
+    if (status === 401) {
+      return NextResponse.json(
+        {
+          error: true,
+          message:
+            'AFIP rechazó las credenciales configuradas. Verificá que el certificado y la clave privada correspondan al CUIT y que el servicio WSFE esté habilitado.'
+        },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json({ error: true, message: err?.message ?? 'Unknown error' }, { status: 400 });
   }
 }
