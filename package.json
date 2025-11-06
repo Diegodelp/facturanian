@@ -1,6 +1,6 @@
 {
   "name": "afip-invoice-vercel",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "afip.js": "^2.2.1",
+    "@afipsdk/afip.js": "^1.2.0",
     "dayjs": "^1.11.13",
     "next": "15.0.3",
     "pdfkit": "^0.15.0",

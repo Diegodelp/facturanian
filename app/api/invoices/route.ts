@@ -16,8 +16,8 @@ const BodySchema = z.object({
   auth: AuthSchema,
   ptoVta: z.number().int().min(1),
   tipoCbte: z.enum(['A','B','C']).default('C'),
-  concepto: z.number().int().min(1).max(3).default(1), // 1=Productos, 2=Servicios, 3=Ambos
-  docTipo: z.number().int().default(99),               // 99=CF, 80=CUIT, 96=DNI
+  concepto: z.number().int().min(1).max(3).default(1),
+  docTipo: z.number().int().default(99),
   docNro:  z.number().int().default(0),
   items:   z.array(z.object({ desc: z.string(), qty: z.number().positive(), price: z.number().nonnegative() }))
 });
@@ -27,7 +27,7 @@ const tipoToCode: Record<string, number> = { A: 1, B: 6, C: 11 };
 function requireBasicAuth(req: NextRequest) {
   const user = process.env.BASIC_AUTH_USER;
   const pass = process.env.BASIC_AUTH_PASS;
-  if (!user || !pass) return true; // disabled
+  if (!user || !pass) return true;
   const header = req.headers.get('authorization');
   if (!header || !header.startsWith('Basic ')) return false;
   const raw = Buffer.from(header.split(' ')[1], 'base64').toString('utf8');
@@ -52,16 +52,13 @@ export async function POST(req: NextRequest) {
       keyPem: data.auth.keyPem
     });
 
-    // 1) Próximo número
-    const last = await afip.ElectronicBilling.getLastVoucher(data.ptoVta, cbteTipo);
+    const last = await (afip as any).ElectronicBilling.getLastVoucher(data.ptoVta, cbteTipo);
     const cbteNro = last + 1;
 
-    // 2) Totales
     const neto = data.items.reduce((s, it) => s + it.qty * it.price, 0);
     const iva21 = (data.tipoCbte === 'A' || data.tipoCbte === 'B') ? Number((neto * 0.21).toFixed(2)) : 0;
     const total = neto + iva21;
 
-    // 3) Emisión
     const today = dayjs().format('YYYYMMDD');
     const due = dayjs().add(10, 'day').format('YYYYMMDD');
     const ivaArray = iva21 > 0 ? [{ Id: 5, BaseImp: Number(neto.toFixed(2)), Importe: iva21 }] : [];
@@ -87,12 +84,11 @@ export async function POST(req: NextRequest) {
       Iva: ivaArray.length ? ivaArray : undefined,
       FchServDesde: data.concepto !== 1 ? today : undefined,
       FchServHasta:  data.concepto !== 1 ? today : undefined,
-      FchVtoPago:    data.concepto !== 1 ? due : undefined,
+      FchVtoPago:    data.concepto !== 1 ? due : undefined
     };
 
-    const { CAE, CAEFchVto } = await afip.ElectronicBilling.createVoucher(reqCbte);
+    const { CAE, CAEFchVto } = await (afip as any).ElectronicBilling.createVoucher(reqCbte);
 
-    // 4) QR
     const qrDataUrl = await buildAfipQrDataUrl({
       ver: 1,
       fecha: dayjs().format('YYYY-MM-DD'),
@@ -109,7 +105,6 @@ export async function POST(req: NextRequest) {
       codAut: Number(CAE)
     });
 
-    // 5) PDF
     const pdfPath = `/tmp/factura-${cbteTipo}-${data.ptoVta}-${cbteNro}.pdf`;
     await buildInvoicePdf({
       outputPath: pdfPath,

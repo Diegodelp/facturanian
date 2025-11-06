@@ -1,4 +1,4 @@
-import Afip from 'afip.js';
+import Afip from '@afipsdk/afip.js';
 
 export function makeAfipClient(opts: {
   CUIT: number;
@@ -6,7 +6,7 @@ export function makeAfipClient(opts: {
   certPem: string;
   keyPem: string;
 }) {
-  return new Afip({
+  return new (Afip as any)({
     CUIT: opts.CUIT,
     production: opts.production,
     cert: opts.certPem,
